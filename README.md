@@ -115,6 +115,7 @@ make build   # Production build
 make clean   # Remove build artifacts
 ```
 
-## Known Issues
+## ToDo
 
 - **Bookmark icon not updating in real-time**: After adding/removing a bookmark, the bookmark icon (🔖) in the grid and tree may not immediately reflect the change. Navigating to another folder and back shows the correct state. The backend API correctly returns `bookmarked` status in note/tree responses; the issue is in the React rendering pipeline — child components do not always re-render after `refreshTree()`/`handleRefresh()` completes.
+- **增加编辑器功能** 增加ToDoList功能,增加表格功能
