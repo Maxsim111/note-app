@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import type { Note } from '../types';
 import { api } from '../hooks/useApi';
 
@@ -11,8 +13,29 @@ interface Props {
   onNoteUpdated: (note: Note) => void;
 }
 
-function renderMarkdown(text: string): string {
-  let html = text
+function renderMath(text: string): string {
+  const blocks: string[] = [];
+
+  // Replace display math $$...$$ with placeholders
+  let html = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, formula) => {
+    try {
+      const rendered = katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false });
+      blocks.push(rendered);
+      return `%%MATHBLOCK${blocks.length - 1}%%`;
+    } catch { return _; }
+  });
+
+  // Replace inline math $...$ with placeholders
+  html = html.replace(/\$(.+?)\$/g, (_, formula) => {
+    try {
+      const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false });
+      blocks.push(rendered);
+      return `%%MATHBLOCK${blocks.length - 1}%%`;
+    } catch { return _; }
+  });
+
+  // Process markdown
+  html = html
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
@@ -30,6 +53,10 @@ function renderMarkdown(text: string): string {
     return `<ul>${lis}</ul>`;
   });
   html = html.replace(/<p><\/p>/g, '');
+
+  // Restore math blocks
+  html = html.replace(/%%MATHBLOCK(\d+)%%/g, (_, i) => blocks[parseInt(i)] || '');
+
   return html;
 }
 
@@ -61,12 +88,7 @@ export function NotePage({ note, onNoteUpdated }: Props) {
   return (
     <div className="tab-editor-body">
       <div className="tab-editor-toolbar">
-        <input
-          className="tab-editor-title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Note title"
-        />
+        <input className="tab-editor-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Note title" />
         {!isFile && (
           <select value={contentType} onChange={(e) => setContentType(e.target.value)} className="sort-select">
             <option value="text">Text</option>
@@ -83,26 +105,20 @@ export function NotePage({ note, onNoteUpdated }: Props) {
 
       {isImage && (
         <div className="file-preview-area">
-          {note.thumbnail_path && (
-            <img src={`/api/thumbnails/${note.id}`} alt={note.title} />
-          )}
+          {note.thumbnail_path && <img src={`/api/thumbnails/${note.id}`} alt={note.title} />}
         </div>
       )}
 
       {!isImage && preview && contentType === 'markdown' && (
-        <div className="tab-editor-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }} />
+        <div className="tab-editor-preview" dangerouslySetInnerHTML={{ __html: renderMath(content) }} />
       )}
       {!isImage && preview && contentType !== 'markdown' && (
         <div className="tab-editor-preview" style={{ whiteSpace: 'pre-wrap' }}>{content}</div>
       )}
       {!isImage && !preview && (
-        <textarea
-          className="tab-editor-textarea"
-          style={{ borderRight: 'none', flex: 1 }}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder={isFile ? 'Add a caption...' : 'Write here...'}
-        />
+        <textarea className="tab-editor-textarea" style={{ borderRight: 'none', flex: 1 }}
+          value={content} onChange={(e) => setContent(e.target.value)}
+          placeholder={isFile ? 'Add a caption...' : 'Write here...'} />
       )}
     </div>
   );
