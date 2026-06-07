@@ -546,28 +546,36 @@ func (s *Store) cleanupNoteFiles(n *model.Note) {
 }
 
 func (s *Store) cleanupFilesInFolder(folderID string) {
+	// Collect note IDs first to avoid nested queries
+	var noteIDs []string
 	rows, err := s.db.Query("SELECT id FROM notes WHERE folder_id = ?", folderID)
-	if err != nil {
-		return
+	if err == nil {
+		for rows.Next() {
+			var id string
+			rows.Scan(&id)
+			noteIDs = append(noteIDs, id)
+		}
+		rows.Close()
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var id string
-		rows.Scan(&id)
+	for _, id := range noteIDs {
 		n, err := s.GetNote(id)
 		if err == nil {
 			s.cleanupNoteFiles(n)
 		}
 	}
-	// Also recurse into sub-folders
+
+	// Collect sub-folder IDs first to avoid recursive nested queries
+	var subIDs []string
 	subRows, err := s.db.Query("SELECT id FROM folders WHERE parent_id = ?", folderID)
-	if err != nil {
-		return
+	if err == nil {
+		for subRows.Next() {
+			var subID string
+			subRows.Scan(&subID)
+			subIDs = append(subIDs, subID)
+		}
+		subRows.Close()
 	}
-	defer subRows.Close()
-	for subRows.Next() {
-		var subID string
-		subRows.Scan(&subID)
+	for _, subID := range subIDs {
 		s.cleanupFilesInFolder(subID)
 	}
 }
