@@ -97,9 +97,6 @@ export function NoteApp() {
     }
   };
 
-  // TODO: bookmark real-time update — refreshTree/handleRefresh after bookmark change
-  // may not immediately update NoteBlock/TreeNode bookmark icons. Investigate React
-  // rendering pipeline to ensure child components re-render with updated bookmarked status.
   const confirmBookmark = async (noteId: string, folderId: string, name: string, color: string) => {
     try {
       let fid = folderId;
