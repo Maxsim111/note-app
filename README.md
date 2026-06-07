@@ -2,6 +2,8 @@
 
 Self-hosted web note-taking application. Single binary, dark theme, three-column layout.
 
+![Screenshot](screenshot.png)
+
 ## Features
 
 - **Three-column UI**: Settings panel | Folder tree | Content grid with colored blocks
