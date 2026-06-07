@@ -103,6 +103,22 @@ func reorderFolders(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+func moveFolder(c *gin.Context) {
+	id := c.Param("id")
+	var req struct {
+		ParentID string `json:"parent_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "parent_id is required"})
+		return
+	}
+	if err := svcStore.MoveFolder(id, req.ParentID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 func deleteFolder(c *gin.Context) {
 	id := c.Param("id")
 	if err := svcStore.DeleteFolder(id); err != nil {

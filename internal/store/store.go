@@ -69,6 +69,22 @@ func (s *Store) initSchema() error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_notes_folder ON notes(folder_id);
 
+		CREATE TABLE IF NOT EXISTS bookmark_folders (
+			id         TEXT PRIMARY KEY,
+			name       TEXT NOT NULL,
+			color      TEXT NOT NULL DEFAULT '#d2991d',
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL DEFAULT (datetime('now'))
+		);
+
+		CREATE TABLE IF NOT EXISTS bookmarks (
+			id         TEXT PRIMARY KEY,
+			note_id    TEXT NOT NULL UNIQUE REFERENCES notes(id) ON DELETE CASCADE,
+			folder_id  TEXT REFERENCES bookmark_folders(id) ON DELETE SET NULL,
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL DEFAULT (datetime('now'))
+		);
+
 		CREATE TABLE IF NOT EXISTS settings (
 			key   TEXT PRIMARY KEY,
 			value TEXT NOT NULL
@@ -179,7 +195,12 @@ func (s *Store) GetFolderChildren(folderID string) (*model.FolderChildren, error
 	}
 
 	nRows, err := s.db.Query(
-		"SELECT id, title, content, color, folder_id, sort_order, content_type, file_name, file_size, thumbnail_path, created_at, updated_at FROM notes WHERE folder_id = ? ORDER BY sort_order",
+		`SELECT n.id, n.title, n.content, n.color, n.folder_id, n.sort_order, n.content_type,
+			n.file_name, n.file_size, n.thumbnail_path,
+			CASE WHEN b.note_id IS NOT NULL THEN 1 ELSE 0 END,
+			n.created_at, n.updated_at
+		 FROM notes n LEFT JOIN bookmarks b ON n.id = b.note_id
+		 WHERE n.folder_id = ? ORDER BY n.sort_order`,
 		folderID,
 	)
 	if err != nil {
@@ -189,39 +210,60 @@ func (s *Store) GetFolderChildren(folderID string) (*model.FolderChildren, error
 	for nRows.Next() {
 		var n model.Note
 		nRows.Scan(&n.ID, &n.Title, &n.Content, &n.Color, &n.FolderID, &n.SortOrder,
-			&n.ContentType, &n.FileName, &n.FileSize, &n.ThumbnailPath, &n.CreatedAt, &n.UpdatedAt)
+			&n.ContentType, &n.FileName, &n.FileSize, &n.ThumbnailPath, &n.Bookmarked, &n.CreatedAt, &n.UpdatedAt)
 		result.Notes = append(result.Notes, n)
 	}
 	return result, nil
 }
 
-type flatFolder struct {
-	ID       string
-	Name     string
-	Color    string
-	ParentID *string
+type flatItem struct {
+	ID          string
+	Name        string
+	Color       string
+	ParentID    *string
+	ContentType string
+	IsNote      bool
+	Bookmarked  bool
 }
 
 func (s *Store) GetFolderTree() ([]model.TreeNode, error) {
-	rows, err := s.db.Query("SELECT id, name, color, parent_id FROM folders ORDER BY sort_order")
+	var all []flatItem
+
+	// Load folders
+	fRows, err := s.db.Query("SELECT id, name, color, parent_id FROM folders ORDER BY sort_order")
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var all []flatFolder
-	for rows.Next() {
-		var f flatFolder
+	for fRows.Next() {
+		var f flatItem
 		var pid sql.NullString
-		rows.Scan(&f.ID, &f.Name, &f.Color, &pid)
+		fRows.Scan(&f.ID, &f.Name, &f.Color, &pid)
 		if pid.Valid {
 			f.ParentID = &pid.String
 		}
 		all = append(all, f)
 	}
+	fRows.Close()
 
-	childrenMap := map[string][]flatFolder{}
-	var roots []flatFolder
+	// Load notes (leaf nodes) with bookmark status
+	nRows, err := s.db.Query(`SELECT n.id, n.title, n.color, n.folder_id, n.content_type,
+		CASE WHEN b.note_id IS NOT NULL THEN 1 ELSE 0 END
+		FROM notes n LEFT JOIN bookmarks b ON n.id = b.note_id ORDER BY n.sort_order`)
+	if err != nil {
+		return nil, err
+	}
+	for nRows.Next() {
+		var n flatItem
+		var fid string
+		nRows.Scan(&n.ID, &n.Name, &n.Color, &fid, &n.ContentType, &n.Bookmarked)
+		n.ParentID = &fid
+		n.IsNote = true
+		all = append(all, n)
+	}
+	nRows.Close()
+
+	childrenMap := map[string][]flatItem{}
+	var roots []flatItem
 	for _, f := range all {
 		if f.ParentID == nil {
 			roots = append(roots, f)
@@ -232,26 +274,37 @@ func (s *Store) GetFolderTree() ([]model.TreeNode, error) {
 
 	var build func(parentID string) []model.TreeNode
 	build = func(parentID string) []model.TreeNode {
-		var nodes []model.TreeNode
+		nodes := make([]model.TreeNode, 0)
 		for _, f := range childrenMap[parentID] {
-			nodes = append(nodes, model.TreeNode{
-				ID:       f.ID,
-				Name:     f.Name,
-				Color:    f.Color,
-				Children: build(f.ID),
-			})
+			node := model.TreeNode{
+				ID:    f.ID,
+				Name:  f.Name,
+				Color: f.Color,
+			}
+			if f.IsNote {
+				node.Type = "note"
+				node.ContentType = f.ContentType
+				node.Bookmarked = f.Bookmarked
+				node.Children = make([]model.TreeNode, 0)
+			} else {
+				node.Type = "folder"
+				node.Children = build(f.ID)
+			}
+			nodes = append(nodes, node)
 		}
 		return nodes
 	}
 
-	var result []model.TreeNode
+	result := make([]model.TreeNode, 0, len(roots))
 	for _, r := range roots {
-		result = append(result, model.TreeNode{
-			ID:       r.ID,
-			Name:     r.Name,
-			Color:    r.Color,
-			Children: build(r.ID),
-		})
+		node := model.TreeNode{
+			ID:    r.ID,
+			Name:  r.Name,
+			Color: r.Color,
+			Type:  "folder",
+		}
+		node.Children = build(r.ID)
+		result = append(result, node)
 	}
 	return result, nil
 }
@@ -328,9 +381,13 @@ func (s *Store) CreateNote(title, content, folderID, clr, contentType string) (*
 func (s *Store) GetNote(id string) (*model.Note, error) {
 	n := &model.Note{}
 	err := s.db.QueryRow(
-		"SELECT id, title, content, color, folder_id, sort_order, content_type, file_name, file_size, thumbnail_path, created_at, updated_at FROM notes WHERE id = ?", id,
+		`SELECT n.id, n.title, n.content, n.color, n.folder_id, n.sort_order, n.content_type,
+			n.file_name, n.file_size, n.thumbnail_path,
+			CASE WHEN b.note_id IS NOT NULL THEN 1 ELSE 0 END,
+			n.created_at, n.updated_at
+		 FROM notes n LEFT JOIN bookmarks b ON n.id = b.note_id WHERE n.id = ?`, id,
 	).Scan(&n.ID, &n.Title, &n.Content, &n.Color, &n.FolderID, &n.SortOrder,
-		&n.ContentType, &n.FileName, &n.FileSize, &n.ThumbnailPath, &n.CreatedAt, &n.UpdatedAt)
+		&n.ContentType, &n.FileName, &n.FileSize, &n.ThumbnailPath, &n.Bookmarked, &n.CreatedAt, &n.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -388,6 +445,35 @@ func (s *Store) ReorderNotes(ids []string) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// ─── Move ─────────────────────────────────────────────────────────
+
+func (s *Store) MoveFolder(id, newParentID string) error {
+	now := sqlNow()
+	_, err := s.db.Exec("UPDATE folders SET parent_id = ?, updated_at = ? WHERE id = ?", nullable(newParentID), now, id)
+	return err
+}
+
+func (s *Store) MoveNote(id, newFolderID string) error {
+	now := sqlNow()
+	_, err := s.db.Exec("UPDATE notes SET folder_id = ?, updated_at = ? WHERE id = ?", newFolderID, now, id)
+	return err
+}
+
+// ─── Stats ─────────────────────────────────────────────────────────
+
+func (s *Store) GetStats() (map[string]interface{}, error) {
+	var folderCount, noteCount int
+	var totalSize int64
+	s.db.QueryRow("SELECT COUNT(*) FROM folders").Scan(&folderCount)
+	s.db.QueryRow("SELECT COUNT(*) FROM notes").Scan(&noteCount)
+	s.db.QueryRow("SELECT COALESCE(SUM(file_size), 0) FROM notes").Scan(&totalSize)
+	return map[string]interface{}{
+		"folder_count": folderCount,
+		"note_count":   noteCount,
+		"total_size":   totalSize,
+	}, nil
 }
 
 // ─── Settings ───────────────────────────────────────────────────────
@@ -491,6 +577,138 @@ func nullable(s string) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: s, Valid: true}
+}
+
+// ─── Search ────────────────────────────────────────────────────────
+
+func (s *Store) SearchNotes(query string) ([]model.Note, error) {
+	q := "%" + query + "%"
+	rows, err := s.db.Query(
+		"SELECT id, title, content, color, folder_id, sort_order, content_type, file_name, file_size, thumbnail_path, created_at, updated_at FROM notes WHERE title LIKE ? OR content LIKE ? ORDER BY updated_at DESC LIMIT 50",
+		q, q,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var notes []model.Note
+	for rows.Next() {
+		var n model.Note
+		rows.Scan(&n.ID, &n.Title, &n.Content, &n.Color, &n.FolderID, &n.SortOrder,
+			&n.ContentType, &n.FileName, &n.FileSize, &n.ThumbnailPath, &n.CreatedAt, &n.UpdatedAt)
+		notes = append(notes, n)
+	}
+	return notes, nil
+}
+
+// ─── Bookmarks ─────────────────────────────────────────────────────
+
+func (s *Store) GetBookmarkFolders() ([]model.Folder, error) {
+	rows, err := s.db.Query("SELECT id, name, color, sort_order, created_at FROM bookmark_folders ORDER BY sort_order")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var folders []model.Folder
+	for rows.Next() {
+		var f model.Folder
+		rows.Scan(&f.ID, &f.Name, &f.Color, &f.SortOrder, &f.CreatedAt)
+		f.UpdatedAt = f.CreatedAt
+		folders = append(folders, f)
+	}
+	return folders, nil
+}
+
+func (s *Store) CreateBookmarkFolder(name, color string) (*model.Folder, error) {
+	id := uuid.New().String()
+	now := sqlNow()
+	var maxOrder int
+	s.db.QueryRow("SELECT COALESCE(MAX(sort_order), -1) FROM bookmark_folders").Scan(&maxOrder)
+	_, err := s.db.Exec(
+		"INSERT INTO bookmark_folders (id, name, color, sort_order, created_at) VALUES (?, ?, ?, ?, ?)",
+		id, name, color, maxOrder+1, now,
+	)
+	if err != nil {
+		return nil, err
+	}
+	folders, _ := s.GetBookmarkFolders()
+	for _, f := range folders {
+		if f.ID == id {
+			return &f, nil
+		}
+	}
+	return nil, nil
+}
+
+func (s *Store) UpdateBookmarkFolder(id, name, color string) error {
+	if name != "" {
+		s.db.Exec("UPDATE bookmark_folders SET name = ? WHERE id = ?", name, id)
+	}
+	if color != "" {
+		s.db.Exec("UPDATE bookmark_folders SET color = ? WHERE id = ?", color, id)
+	}
+	return nil
+}
+
+func (s *Store) DeleteBookmarkFolder(id string) error {
+	_, err := s.db.Exec("DELETE FROM bookmark_folders WHERE id = ?", id)
+	return err
+}
+
+func (s *Store) GetBookmarks() ([]model.Note, error) {
+	rows, err := s.db.Query(
+		`SELECT n.id, n.title, n.content, n.color, n.folder_id, n.sort_order, n.content_type, n.file_name, n.file_size, n.thumbnail_path, n.created_at, n.updated_at
+		 FROM bookmarks b JOIN notes n ON b.note_id = n.id ORDER BY b.sort_order`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var notes []model.Note
+	for rows.Next() {
+		var n model.Note
+		rows.Scan(&n.ID, &n.Title, &n.Content, &n.Color, &n.FolderID, &n.SortOrder,
+			&n.ContentType, &n.FileName, &n.FileSize, &n.ThumbnailPath, &n.CreatedAt, &n.UpdatedAt)
+		notes = append(notes, n)
+	}
+	return notes, nil
+}
+
+func (s *Store) GetBookmarkedNoteIDs() (map[string]string, error) {
+	rows, err := s.db.Query("SELECT note_id, COALESCE(folder_id, '') FROM bookmarks")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := map[string]string{}
+	for rows.Next() {
+		var noteID, folderID string
+		rows.Scan(&noteID, &folderID)
+		result[noteID] = folderID
+	}
+	return result, nil
+}
+
+func (s *Store) AddBookmark(noteID, folderID string) error {
+	id := uuid.New().String()
+	now := sqlNow()
+	var maxOrder int
+	s.db.QueryRow("SELECT COALESCE(MAX(sort_order), -1) FROM bookmarks").Scan(&maxOrder)
+	_, err := s.db.Exec(
+		"INSERT OR IGNORE INTO bookmarks (id, note_id, folder_id, sort_order, created_at) VALUES (?, ?, ?, ?, ?)",
+		id, noteID, nullable(folderID), maxOrder+1, now,
+	)
+	return err
+}
+
+func (s *Store) MoveBookmark(noteID, folderID string) error {
+	_, err := s.db.Exec("UPDATE bookmarks SET folder_id = ? WHERE note_id = ?", nullable(folderID), noteID)
+	return err
+}
+
+func (s *Store) RemoveBookmark(noteID string) error {
+	_, err := s.db.Exec("DELETE FROM bookmarks WHERE note_id = ?", noteID)
+	return err
 }
 
 func sqlNow() string {

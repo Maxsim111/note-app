@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/Maxsim111/note-app/internal/model"
 )
 
 func getNote(c *gin.Context) {
@@ -72,6 +73,22 @@ func reorderNotes(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+func moveNote(c *gin.Context) {
+	id := c.Param("id")
+	var req struct {
+		FolderID string `json:"folder_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "folder_id is required"})
+		return
+	}
+	if err := svcStore.MoveNote(id, req.FolderID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
 func deleteNote(c *gin.Context) {
 	id := c.Param("id")
 	if err := svcStore.DeleteNote(id); err != nil {
@@ -79,4 +96,21 @@ func deleteNote(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func searchNotes(c *gin.Context) {
+	q := c.Query("q")
+	if q == "" {
+		c.JSON(http.StatusOK, []model.Note{})
+		return
+	}
+	notes, err := svcStore.SearchNotes(q)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if notes == nil {
+		notes = []model.Note{}
+	}
+	c.JSON(http.StatusOK, notes)
 }

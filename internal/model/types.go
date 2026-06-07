@@ -21,15 +21,19 @@ type Note struct {
 	FileName      *string `json:"file_name"`
 	FileSize      *int64  `json:"file_size"`
 	ThumbnailPath *string `json:"thumbnail_path"`
+	Bookmarked    bool    `json:"bookmarked"`
 	CreatedAt     string  `json:"created_at"`
 	UpdatedAt     string  `json:"updated_at"`
 }
 
 type TreeNode struct {
-	ID       string     `json:"id"`
-	Name     string     `json:"name"`
-	Color    string     `json:"color"`
-	Children []TreeNode `json:"children"`
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Color       string     `json:"color"`
+	Type        string     `json:"type"` // "folder" | "note"
+	ContentType string     `json:"content_type,omitempty"`
+	Bookmarked  bool       `json:"bookmarked"`
+	Children    []TreeNode `json:"children"`
 }
 
 type FolderChildren struct {

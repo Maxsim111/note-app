@@ -19,6 +19,7 @@ export interface Note {
   file_name: string | null;
   file_size: number | null;
   thumbnail_path: string | null;
+  bookmarked: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +28,9 @@ export interface TreeNode {
   id: string;
   name: string;
   color: string;
+  type: 'folder' | 'note';
+  content_type?: string;
+  bookmarked: boolean;
   children: TreeNode[];
 }
 

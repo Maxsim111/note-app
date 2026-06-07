@@ -1,3 +1,17 @@
+import type { Note } from '../types';
+
+export function getNoteExt(note: Note): string {
+  if (note.content_type === 'image') return '';
+  const map: Record<string, string> = { markdown: '.md', text: '.txt', pdf: '.pdf', doc: '.doc' };
+  return map[note.content_type] || '';
+}
+
+export function getTreeNodeExt(node: { type: string; content_type?: string }): string {
+  if (node.type !== 'note' || !node.content_type || node.content_type === 'image') return '';
+  const map: Record<string, string> = { markdown: '.md', text: '.txt', pdf: '.pdf', doc: '.doc' };
+  return map[node.content_type] || '';
+}
+
 export function formatDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });

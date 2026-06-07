@@ -12,6 +12,10 @@ func getSettings(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if settings == nil {
+		settings = map[string]string{}
+	}
+	settings["data_path"] = svcStore.DataDir()
 	c.JSON(http.StatusOK, settings)
 }
 
@@ -26,4 +30,13 @@ func updateSettings(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func getStats(c *gin.Context) {
+	stats, err := svcStore.GetStats()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, stats)
 }

@@ -32,6 +32,10 @@ func uploadFile(c *gin.Context) {
 
 	if title == "" {
 		title = header.Filename
+		ext := filepath.Ext(title)
+		if ext != "" {
+			title = title[:len(title)-len(ext)]
+		}
 	}
 
 	contentType := detectContentType(header.Filename, file)
