@@ -195,29 +195,65 @@ func (s *Store) GetFolderChildren(folderID string) (*model.FolderChildren, error
 	return result, nil
 }
 
-func (s *Store) GetFolderTree() ([]model.TreeNode, error) {
-	return s.buildTree(nil)
+type flatFolder struct {
+	ID       string
+	Name     string
+	Color    string
+	ParentID *string
 }
 
-func (s *Store) buildTree(parentID *string) ([]model.TreeNode, error) {
-	rows, err := s.db.Query(
-		"SELECT id, name, color FROM folders WHERE parent_id IS ? ORDER BY sort_order",
-		nullablePtr(parentID),
-	)
+func (s *Store) GetFolderTree() ([]model.TreeNode, error) {
+	rows, err := s.db.Query("SELECT id, name, color, parent_id FROM folders ORDER BY sort_order")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var nodes []model.TreeNode
+	var all []flatFolder
 	for rows.Next() {
-		var n model.TreeNode
-		rows.Scan(&n.ID, &n.Name, &n.Color)
-		children, _ := s.buildTree(&n.ID)
-		n.Children = children
-		nodes = append(nodes, n)
+		var f flatFolder
+		var pid sql.NullString
+		rows.Scan(&f.ID, &f.Name, &f.Color, &pid)
+		if pid.Valid {
+			f.ParentID = &pid.String
+		}
+		all = append(all, f)
 	}
-	return nodes, nil
+
+	childrenMap := map[string][]flatFolder{}
+	var roots []flatFolder
+	for _, f := range all {
+		if f.ParentID == nil {
+			roots = append(roots, f)
+		} else {
+			childrenMap[*f.ParentID] = append(childrenMap[*f.ParentID], f)
+		}
+	}
+
+	var build func(parentID string) []model.TreeNode
+	build = func(parentID string) []model.TreeNode {
+		var nodes []model.TreeNode
+		for _, f := range childrenMap[parentID] {
+			nodes = append(nodes, model.TreeNode{
+				ID:       f.ID,
+				Name:     f.Name,
+				Color:    f.Color,
+				Children: build(f.ID),
+			})
+		}
+		return nodes
+	}
+
+	var result []model.TreeNode
+	for _, r := range roots {
+		result = append(result, model.TreeNode{
+			ID:       r.ID,
+			Name:     r.Name,
+			Color:    r.Color,
+			Children: build(r.ID),
+		})
+	}
+	return result, nil
 }
 
 func (s *Store) GetBreadcrumb(folderID string) ([]model.Folder, error) {
@@ -455,13 +491,6 @@ func nullable(s string) sql.NullString {
 		return sql.NullString{}
 	}
 	return sql.NullString{String: s, Valid: true}
-}
-
-func nullablePtr(s *string) sql.NullString {
-	if s == nil {
-		return sql.NullString{}
-	}
-	return sql.NullString{String: *s, Valid: true}
 }
 
 func sqlNow() string {
