@@ -37,6 +37,9 @@ export function NoteApp() {
   const [treeVisible, setTreeVisible] = useState(true);
   const [treeMode, setTreeMode] = useState<'folder' | 'search' | 'bookmark'>('folder');
 
+  // Preview mode per tab (lifted from NotePage to survive unmount)
+  const [previewMap, setPreviewMap] = useState<Record<string, 'edit' | 'preview'>>({});
+
   // Bookmark state
   const [bookmarkingNoteId, setBookmarkingNoteId] = useState<string | null>(null);
   const [unbookmarkingNoteId, setUnbookmarkingNoteId] = useState<string | null>(null);
@@ -343,7 +346,7 @@ export function NoteApp() {
         )}
 
         {activeTabId && activeNote ? (
-          <NotePage note={activeNote} tabs={openTabs} activeTabId={activeTabId} onCloseTab={handleCloseTab} onSwitchTab={setActiveTabId} onNoteUpdated={handleNoteUpdated} />
+          <NotePage note={activeNote} tabs={openTabs} activeTabId={activeTabId} onCloseTab={handleCloseTab} onSwitchTab={setActiveTabId} onNoteUpdated={handleNoteUpdated} previewMap={previewMap} onPreviewChange={(id, mode) => setPreviewMap((p) => ({ ...p, [id]: mode }))} />
         ) : (
           <MainArea
             breadcrumb={breadcrumb} children={children} currentFolderId={currentFolderId}

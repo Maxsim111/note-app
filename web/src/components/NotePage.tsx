@@ -14,14 +14,15 @@ interface Props {
   onCloseTab: (id: string) => void;
   onSwitchTab: (id: string) => void;
   onNoteUpdated: (note: Note) => void;
+  previewMap: Record<string, 'edit' | 'preview'>;
+  onPreviewChange: (id: string, mode: 'edit' | 'preview') => void;
 }
 
-export function NotePage({ note, onNoteUpdated }: Props) {
+export function NotePage({ note, onNoteUpdated, previewMap, onPreviewChange }: Props) {
   const [title, setTitle] = useState(note?.title || '');
   const [content, setContent] = useState(note?.content || '');
-  const [previewMap, setPreviewMap] = useState<Record<string, 'edit' | 'preview'>>({});
   const preview = previewMap[note.id] || 'edit';
-  const setPreview = (mode: 'edit' | 'preview') => setPreviewMap((prev) => ({ ...prev, [note.id]: mode }));
+  const setPreview = (mode: 'edit' | 'preview') => onPreviewChange(note.id, mode);
   const [colorMode, setColorMode] = useState(() => document.documentElement.getAttribute('data-color-mode') || 'dark');
   const [saving, setSaving] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
