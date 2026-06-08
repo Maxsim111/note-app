@@ -650,6 +650,41 @@ body {
 .tab-editor-preview table { border-collapse: collapse; width: 100%; }
 .tab-editor-preview th, .tab-editor-preview td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
 
+.pdf-viewer {
+  flex: 1;
+  width: 100%;
+  border: none;
+}
+
+.doc-viewer {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  line-height: 1.6;
+  font-size: 14px;
+}
+.doc-viewer h1 { font-size: 1.5em; margin: 0.5em 0; }
+.doc-viewer h2 { font-size: 1.3em; margin: 0.5em 0; }
+.doc-viewer table { border-collapse: collapse; width: 100%; margin: 0.5em 0; }
+.doc-viewer td, .doc-viewer th { border: 1px solid var(--border); padding: 6px 10px; }
+
+.file-caption {
+  border-top: 1px solid var(--border);
+  padding: 8px 16px;
+  flex-shrink: 0;
+}
+.file-caption-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: none;
+}
+
 .file-preview-area {
   flex: 1;
   display: flex;
@@ -700,6 +735,22 @@ body {
   font-size: 12px; font-weight: 600; color: var(--text-dim);
 }
 .bookmark-folder { padding: 4px 0; }
+
+/* ─── MD Editor ─── */
+
+.md-editor-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.md-editor-wrap .w-md-editor {
+  flex: 1;
+  min-height: 0;
+  --md-editor-background: var(--bg);
+  --md-editor-color: var(--text);
+  --md-editor-border-color: var(--border);
+}
 
 /* ─── Scrollbar ─── */
 

@@ -53,6 +53,7 @@ export function NoteApp() {
   }, []);
 
   const applyTheme = (t: 'dark' | 'light') => {
+    document.documentElement.setAttribute('data-color-mode', t);
     if (t === 'light') {
       document.documentElement.style.setProperty('--bg', '#ffffff'); document.documentElement.style.setProperty('--card-bg', '#f6f8fa');
       document.documentElement.style.setProperty('--text', '#24292f'); document.documentElement.style.setProperty('--text-dim', '#656d76'); document.documentElement.style.setProperty('--border', '#d0d7de');

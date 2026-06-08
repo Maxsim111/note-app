@@ -68,7 +68,6 @@ export function NoteEditor({ note, onSave, onClose, allFolders }: Props) {
           <div className="form-group">
             <label>Content Type</label>
             <select value={contentType} onChange={(e) => setContentType(e.target.value)}>
-              <option value="text">Plain Text</option>
               <option value="markdown">Markdown</option>
             </select>
           </div>

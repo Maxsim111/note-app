@@ -38,6 +38,7 @@ export function SettingsModal({ onClose }: Props) {
     if (key === 'accent_color') document.documentElement.style.setProperty('--accent', value);
     if (key === 'font_size') document.documentElement.style.setProperty('--font-size', value + 'px');
     if (key === 'theme') {
+      document.documentElement.setAttribute('data-color-mode', value);
       if (value === 'light') {
         document.documentElement.style.setProperty('--bg', '#ffffff');
         document.documentElement.style.setProperty('--card-bg', '#f6f8fa');
