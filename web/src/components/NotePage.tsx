@@ -66,7 +66,7 @@ export function NotePage({ note, onNoteUpdated, previewMap, onPreviewChange }: P
     setContent(note.content);
   }, [note.id]);
 
-  const isFile = !!note.file_name;
+  const isFile = !!note.file_name && note.content_type !== 'markdown' && note.content_type !== 'text';
   const isImage = note.content_type === 'image';
   const isPdf = note.content_type === 'pdf';
   const isDoc = note.content_type === 'doc';
