@@ -42,15 +42,21 @@ func uploadFile(c *gin.Context) {
 	// Reset read position
 	file.Seek(0, io.SeekStart)
 
-	// Read content for text/markdown files
-	var content string
+	// Read content for text/markdown files — import as regular notes, not file notes
 	if contentType == "txt" || contentType == "markdown" {
-		data, _ := io.ReadAll(io.LimitReader(file, 1024*1024)) // max 1MB
-		content = string(data)
-		file.Seek(0, io.SeekStart)
+		data, _ := io.ReadAll(io.LimitReader(file, 1024*1024))
+		content := string(data)
+		contentType = "markdown"
+		note, err := svcStore.CreateNote(title, content, folderID, color, contentType)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusCreated, note)
+		return
 	}
 
-	note, err := svcStore.CreateNote(title, content, folderID, color, contentType)
+	note, err := svcStore.CreateNote(title, "", folderID, color, contentType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
