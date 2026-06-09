@@ -45,7 +45,7 @@ export function NotePage({ note, onNoteUpdated, previewMap, onPreviewChange }: P
       if (!title.trim() && !content) return;
       setSaving(true);
       try {
-        const updated = await api.put<Note>(`/notes/${note.id}`, { title: title.trim(), content, content_type: 'markdown' });
+        const updated = await api.put<Note>(`/notes/${note.id}`, { title: title.trim(), content, content_type: note.content_type });
         onNoteUpdated(updated);
       } catch {}
       setSaving(false);
@@ -57,7 +57,7 @@ export function NotePage({ note, onNoteUpdated, previewMap, onPreviewChange }: P
   useEffect(() => {
     return () => {
       if (!title.trim() && !content) return;
-      api.put(`/notes/${note.id}`, { title: title.trim(), content, content_type: 'markdown' }).catch(() => {});
+      api.put(`/notes/${note.id}`, { title: title.trim(), content, content_type: note.content_type }).catch(() => {});
     };
   }, []);
 
@@ -75,7 +75,7 @@ export function NotePage({ note, onNoteUpdated, previewMap, onPreviewChange }: P
     const updated = await api.put<Note>(`/notes/${note.id}`, {
       title: title.trim(),
       content,
-      content_type: 'markdown',
+      content_type: note.content_type,
     });
     onNoteUpdated(updated);
   };
