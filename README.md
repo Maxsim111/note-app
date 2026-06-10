@@ -118,4 +118,7 @@ make clean   # Remove build artifacts
 ## ToDo
 
 - **Bookmark icon not updating in real-time**: After adding/removing a bookmark, the bookmark icon (🔖) in the grid and tree may not immediately reflect the change. Navigating to another folder and back shows the correct state. The backend API correctly returns `bookmarked` status in note/tree responses; the issue is in the React rendering pipeline — child components do not always re-render after `refreshTree()`/`handleRefresh()` completes.
+- **增加用户登录功能,给翔翔一个账号**
 - **导入外部md文档时的图片问题** 能否实现一键导入不出bug
+- **对大md文件编辑时过于卡顿**
+- **每次切换edit|preview模式,切换标签页时都会从文件头显示,没有位置记忆功能**
